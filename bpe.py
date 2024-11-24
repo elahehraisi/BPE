@@ -1,44 +1,53 @@
-# BPE
-Byte Pair Encoding following the video by Andrej Karpathy
-
-https://www.youtube.com/watch?v=zduSFxRajkE&list=PLAqhIrjkxbuWI23v9cThsA9GvCAUhRvKZ&index=13
+from collections import defaultdict
 
 
-### Step 1
-Encode text to utf-8
+# following text is from https://www.reedbeta.com/blog/programmers-intro-to-unicode/
 
-```python
-byte_tokens = text.encode("utf-8")
-```
+text = ("Ｕｎｉｃｏｄｅ! 🅤🅝🅘🅒🅞🅓🅔‽ 🇺‌🇳‌🇮‌🇨‌🇴‌🇩‌🇪! 😄 The very name strikes fear and awe "
+        "into the hearts of programmers worldwide. We all know we ought to “support Unicode”"
+        " in our software (whatever that means—like using wchar_t for all the strings, right?). "
+        "But Unicode can be abstruse, and diving into the thousand-page Unicode Standard plus "
+        "its dozens of supplementary annexes, reports, and notes can be more than a little "
+        "intimidating. I don’t blame programmers for still finding the whole thing mysterious, "
+        "even 30 years after Unicode’s inception.")
 
-`b'\xef\xbc\xb5\xef\xbd\x8e\xef\xbd\x89\xef\xbd\x83\xef\xbd\x8f\xef\xbd\x84\xef\xbd\x85! ...`
 
-### Step 2
-convert bytes to a list of integers in range 0...255 for convenience
+# In Python,the encode() method is used to convert a string into a bytes object,
+# which is a sequence of bytes representing the string's characters in a specific encoding format.
 
-```python
+# utf-8 encoding is backward compatible
+byte_tokens = text.encode("utf-8") #raw bytes
+print(byte_tokens)
+# b'\xef\xbc\xb5\xef\xbd\x8e\xef\xbd\x89\xef\xbd\x83\xef\xbd\x8f\xef\xbd\x84\xef\xbd\x85! ...
+
+#convert to a list of integers in range 0...255 for convenience
 tokens = list(map(int,byte_tokens))
-```
+print(tokens)
+# [239, 188, 181, 239, 189, 142, 239, 189, 137, 239, 189, 131, 239, 189, 143, 239, 189, ...
 
-`[239, 188, 181, 239, 189, 142, 239, 189, 137, 239, 189, 131, 239, 189, 143, 239, 189, ...`
+print('len(text): ', len(text)) # 533
+print('len(tokens): ', len(tokens)) # 616
 
 
-### Step 3
-find the co-occurred pairs with their frequencies
-```python
+# find the co-occurred pairs with their frequencies
 def get_pairs(ids):
     count = defaultdict(int)
     for pair in zip(ids, ids[1:]):
         count[pair] += 1
     return count
-```
 
-`[((101, 32), 20), ((240, 159), 15), ((226, 128), 12), ((105, 110), 12), ((115, 32), 10), ((32, 97), 10), ...`
+pairs = get_pairs(tokens)
+sorted_pairs = sorted(pairs.items(), key=lambda x:x[1], reverse=True)
+print(sorted_pairs)
 
-### Step 4
-The merge function replaces the most frequent pair, with new id e.g., the most frequent pair is (101, 32), and the new token id is 256, as a result of this function, all the pairs of (101, 32) will be replaced by 256. So, the text is shortened.
+# [((101, 32), 20), ((240, 159), 15), ((226, 128), 12), ((105, 110), 12), ((115, 32), 10),...
 
-```python
+max_pair = sorted_pairs[0]
+chr(101) # e
+chr(32) # white space
+# the max frequncy is for pair 'e ' in the above text
+
+# replace the most frequent pair (101, 32), with new id e.g., 256 in the list of ids
 def merge(ids, pair, new_id):
 #     in the list of ids, replace all occurrences of pair with the new token idx
     new_ids = []
@@ -52,15 +61,20 @@ def merge(ids, pair, new_id):
             new_ids.append(ids[i])
             i += 1
     return new_ids
-```
 
-### Step 5
-define the most frequent pairs 
+new_token_list = merge(tokens, max_pair[0], 256)
 
-```python
+print(len(new_token_list)) #596
+# number of tokens reduced from 616 to 596
+
+
+# ##############################################
+# ############## implementing BPE ##############
+# ##############################################
+
 vocab_size = 276 # the desired final vocab size
 
-# Create a dictionary merged_pairs: {(token_id 1, token_id 2):new_id}
+# Step 1. Create a dictionary merged_pairs: {(token_id 1, token_id 2):new_id}
 
 num_merges = vocab_size - 256
 ids = list(tokens)
@@ -75,20 +89,15 @@ for i in range(num_merges):
     ids = merge(ids, max_pair, new_id)
     merged_pairs[max_pair] = new_id
 print(merged_pairs)
-# {(101, 32): 256, (240, 159): 257, (226, 128): 258, (105, 110): 259, (115, 32): 260, (97, 110): 261, (116, 104): 262, ...
-
 
 print("old token list: ", len(tokens)) # 616
 print("new token list: ", len(ids)) # 451
 print("compression ratio: ", len(tokens)/len(ids)) # 1.365
 
 
-```
+# ############## Encoding using BPE ##############
+# Step 2: encoding using BPE
 
-### Step 6
-define the encoding the input text
-
-```python
 def encode(text):
 #     given a string, return list of integers (the tokens)
 
@@ -123,13 +132,11 @@ def encode(text):
         tokens = merge(tokens, pair, idx)
     return tokens
 
-```
+print(encode("how are you doing ;)"))
 
-### Step 7
 
-Decode the encoded text 
-
-```python
+# ############## Decoding BPE ##############
+# Step 3. Decoding
 # given tokenizer, and the tokenized text, return the raw text
 
 vocab = {idx: bytes([idx]) for idx in range(256)}
@@ -151,7 +158,4 @@ def decode(ids):
     return text
 
 text = "One Sample Text"
-print(decode(encode(text))) # One Sample Text
-
-```
-
+print(decode(encode(text)))
